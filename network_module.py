@@ -2,6 +2,11 @@ import lightning as L
 import torch
 from hydra.utils import instantiate
 from monai import metrics as mm
+import matplotlib.pyplot as plt
+import torchvision.transforms as T
+import numpy as np
+import os
+from skimage import measure
 
 
 class Net(L.LightningModule):
@@ -23,8 +28,8 @@ class Net(L.LightningModule):
         self.scheduler = scheduler
         self.lr = lr
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, image, text_embedding):
+        return self.model(image, text_embedding)
 
     def configure_optimizers(self):
         optimizer = instantiate(self.optimizer, self.parameters(), lr=self.lr)
@@ -37,58 +42,56 @@ class Net(L.LightningModule):
         return optimizer
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
+        image, mask, text, image_filename = batch
 
         if self.model.deep_supervision:
-            logits, logits_aux = self(x)
+            logits, logits_aux = self(image, text)
 
-            aux_loss = sum(self.criterion(z, y) for z in logits_aux)
-            loss = (self.criterion(logits, y) + aux_loss) / (1 + len(logits_aux))
+            aux_loss = sum(self.criterion(z, mask) for z in logits_aux)
+            loss = (self.criterion(logits, mask) + aux_loss) / (1 + len(logits_aux))
+        else:
+            logits = self(image, text)
+            loss = self.criterion(logits, mask)
 
-            self.log("train_loss", loss)
-            return loss
-
-        logits = self(x)
-        loss = self.criterion(logits, y)
         self.log("train_loss", loss)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch
+        image, mask, text, image_filename = batch
 
         if self.model.deep_supervision:
-            logits, _ = self(x)
+            logits, _ = self(image, text)
         else:
-            logits = self(x)
+            logits = self(image, text)
 
-        loss = self.criterion(logits, y)
+        loss = self.criterion(logits, mask)
         self.log("val_loss", loss)
 
         preds = (torch.sigmoid(logits) > 0.5).long()
-        self.get_dice(preds, y)
-        self.get_iou(preds, y)
-        self.get_recall(preds, y)
-        self.get_precision(preds, y)
+        self.get_dice(preds, mask)
+        self.get_iou(preds, mask)
+        self.get_recall(preds, mask)
+        self.get_precision(preds, mask)
 
         return loss
     
     def test_step(self, batch, batch_idx):
-        x, y = batch
+        image, mask, text, image_filename = batch
 
         if self.model.deep_supervision:
-            logits, _ = self(x)
+            logits, _ = self(image, text)
         else:
-            logits = self(x)
+            logits = self(image, text)
 
-        loss = self.criterion(logits, y)
+        loss = self.criterion(logits, mask)
         self.log("test_loss", loss)
 
         preds = (torch.sigmoid(logits) > 0.5).long()
-        self.get_dice(preds, y)
-        self.get_iou(preds, y)
-        self.get_recall(preds, y)
-        self.get_precision(preds, y)
+        self.get_dice(preds, mask)
+        self.get_iou(preds, mask)
+        self.get_recall(preds, mask)
+        self.get_precision(preds, mask)
 
         return loss
 

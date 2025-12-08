@@ -5,6 +5,24 @@ import torch.nn as nn
 from monai.networks.nets import EfficientNetBNFeatures
 from monai.networks.nets.efficientnet import get_efficientnet_image_size
 
+class ImageTextFusion(nn.Module):
+    def __init__(self, img_channels, text_dim, fused_channels):
+        super(ImageTextFusion, self).__init__()
+        self.text_proj = nn.Linear(text_dim, img_channels)
+        self.conv_fusion = nn.Sequential(
+            nn.Conv2d(img_channels * 2, fused_channels, kernel_size=1, stride=1),
+            nn.BatchNorm2d(fused_channels),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, img_feat, text_embed):
+        # img_feat: (B, C, H, W), text_embed: (B, D)
+        B, C, H, W = img_feat.shape
+        text_feat = self.text_proj(text_embed)   # (B, C)
+        text_feat = text_feat.view(B, C, 1, 1).expand(-1, -1, H, W)  # (B, C, H, W)
+        fusion = torch.cat([img_feat, text_feat], dim=1)  # (B, 2C, H, W)
+        out = self.conv_fusion(fusion)
+        return out
 
 class GhostModule(nn.Module):
     def __init__(
@@ -71,6 +89,8 @@ class EffiSegNetBN(nn.Module):
             model_name=model_name,
             pretrained=pretrained,
         )
+
+        self.text_fusion = ImageTextFusion(img_channels=ch, text_dim=768, fused_channels=ch)
 
         # remove unused layers
         del self.encoder._avg_pooling
@@ -163,7 +183,7 @@ class EffiSegNetBN(nn.Module):
 
         self.conv6 = nn.Conv2d(ch, 1, kernel_size=1, stride=1, padding=0, bias=False)
 
-    def forward(self, x):
+    def forward(self, x, text_embed=None):
         x0, x1, x2, x3, x4 = self.encoder(x)
 
         x0 = self.conv1(x0)
@@ -194,6 +214,10 @@ class EffiSegNetBN(nn.Module):
 
         x = x0 + x1 + x2 + x3 + x4
         x = self.bn6(x)
+
+        if text_embed is not None:
+            x = self.text_fusion(x, text_embed)
+
         x = self.ghost1(x)
         x = self.ghost2(x)
         x = self.conv6(x)
