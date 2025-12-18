@@ -1,5 +1,5 @@
 defaults:
-  - model: effiSegNetBN
+  - model: vital
   - optimizer: adamw
   - scheduler: cosine
   - _self_

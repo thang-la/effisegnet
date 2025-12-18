@@ -22,11 +22,18 @@ class Net(L.LightningModule):
         self.get_precision = mm.ConfusionMatrixMetric(
             include_background=False, metric_name="precision"
         )
+        self.get_hausdorff = mm.HausdorffDistanceMetric(
+            include_background=False,
+            percentile=95
+        )
 
         self.criterion = criterion
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.lr = lr
+
+        self.val_hd_values = []
+        self.test_hd_values = []
 
     def forward(self, image, text_embedding):
         return self.model(image, text_embedding)
@@ -73,6 +80,7 @@ class Net(L.LightningModule):
         self.get_iou(preds, mask)
         self.get_recall(preds, mask)
         self.get_precision(preds, mask)
+        self.get_hausdorff(preds, mask)
 
         return loss
     
@@ -92,6 +100,7 @@ class Net(L.LightningModule):
         self.get_iou(preds, mask)
         self.get_recall(preds, mask)
         self.get_precision(preds, mask)
+        self.get_hausdorff(preds, mask)
 
         return loss
 
@@ -100,31 +109,39 @@ class Net(L.LightningModule):
         iou = self.get_iou.aggregate().item()
         recall = self.get_recall.aggregate()[0].item()
         precision = self.get_precision.aggregate()[0].item()
+        hausdorff = self.get_hausdorff.aggregate().item()
 
         self.log("val_dice", dice)
         self.log("val_iou", iou)
         self.log("val_recall", recall)
         self.log("val_precision", precision)
         self.log("val_f1", 2 * (precision * recall) / (precision + recall + 1e-8))
+        self.log("val_hausdorff", hausdorff, sync_dist=True)
 
         self.get_dice.reset()
         self.get_iou.reset()
         self.get_recall.reset()
         self.get_precision.reset()
+        self.get_hausdorff.reset()
+        self.val_hd_values = []
     
     def on_test_epoch_end(self):
         dice = self.get_dice.aggregate().item()
         iou = self.get_iou.aggregate().item()
         recall = self.get_recall.aggregate()[0].item()
         precision = self.get_precision.aggregate()[0].item()
+        hausdorff = self.get_hausdorff.aggregate().item()
 
         self.log("test_dice", dice)
         self.log("test_iou", iou)
         self.log("test_recall", recall)
         self.log("test_precision", precision)
         self.log("test_f1", 2 * (precision * recall) / (precision + recall + 1e-8))
+        self.log("test_hausdorff", hausdorff, sync_dist=True)
 
         self.get_dice.reset()
         self.get_iou.reset()
         self.get_recall.reset()
         self.get_precision.reset()
+        self.get_hausdorff.reset()
+        self.test_hd_values = []

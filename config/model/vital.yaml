@@ -1,6 +1,6 @@
-name: effiSegNetBN
+name: VITAL
 object:
-  _target_: models.effisegnet.EffiSegNetBN
+  _target_: models.vital.VITAL
   ch: ${ch}
   pretrained: ${pretrained}
   freeze_encoder: ${freeze_encoder}
