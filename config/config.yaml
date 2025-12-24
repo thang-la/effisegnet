@@ -37,6 +37,7 @@ pretrained: True
 freeze_encoder: False
 deep_supervision: False
 model_name: efficientnet-b0
+data_root: "./QaTa-COV19-v2"
 img_size: derived
 batch_size: 8
 lr: 1e-4

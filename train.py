@@ -24,7 +24,7 @@ def main(cfg):
     else:
         img_size = cfg.img_size
 
-    dataset = KvasirSEGDataset(batch_size=cfg.batch_size, img_size=img_size)
+    dataset = KvasirSEGDataset(batch_size=cfg.batch_size, root_dir=cfg.data_root, img_size=img_size)
     
     net = Net(
         model=model,

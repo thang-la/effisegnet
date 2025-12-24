@@ -1,0 +1,49 @@
+model:
+  name: VITAL
+  object:
+    _target_: models.vital.VITAL
+    ch: ${ch}
+    pretrained: ${pretrained}
+    freeze_encoder: ${freeze_encoder}
+    deep_supervision: ${deep_supervision}
+    model_name: ${model_name}
+optimizer:
+  _target_: torch.optim.AdamW
+scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  T_max: ${trainer.max_epochs}
+  eta_min: 1.0e-05
+run_name: ${model.object.model_name}_${model.object.ch}
+trainer:
+  _target_: lightning.pytorch.Trainer
+  accelerator: auto
+  max_epochs: 300
+  log_every_n_steps: 8
+  deterministic: warn
+  callbacks:
+  - _target_: lightning.pytorch.callbacks.EarlyStopping
+    monitor: val_loss
+    mode: min
+    patience: 20
+    min_delta: 0.001
+    verbose: true
+  - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+    monitor: val_loss
+    mode: min
+    save_top_k: 1
+    save_last: true
+    filename: best-{epoch:02d}-{val_loss:.4f}
+    auto_insert_metric_name: false
+criterion:
+  _target_: monai.losses.DiceCELoss
+  include_background: false
+  sigmoid: true
+ch: 32
+pretrained: true
+freeze_encoder: false
+deep_supervision: false
+model_name: efficientnet-b0
+data_root: ./QaTa-COV19-v2
+img_size: derived
+batch_size: 8
+lr: 0.0001
